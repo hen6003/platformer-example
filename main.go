@@ -101,7 +101,7 @@ type gopherPhys struct {
 	ground bool
 }
 
-func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform) {
+func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform, phys *gopherPhys) {
 	// apply controls
 	switch {
 	case ctrl.X < 0:
@@ -135,6 +135,11 @@ func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform) {
 	// jump if on the ground and the player wants to jump
 	if gp.ground && ctrl.Y > 0 {
 		gp.vel.Y = gp.jumpSpeed
+	}
+
+	if gp.rect.Min.Y < -300.0 {
+		phys.rect = phys.rect.Moved(phys.rect.Center().Scaled(-1))
+		phys.vel = pixel.ZV
 	}
 }
 
@@ -317,7 +322,7 @@ func run() {
 	}
 
 	gol := &goal{
-		pos:    pixel.V(-75, 40),
+		pos:    pixel.V(-75, 35),
 		radius: 18,
 		step:   1.0 / 7,
 	}
@@ -362,7 +367,7 @@ func run() {
 		}
 
 		// update the physics and animation
-		phys.update(dt, ctrl, platforms)
+		phys.update(dt, ctrl, platforms, phys)
 		gol.update(dt)
 		anim.update(dt, phys)
 
