@@ -406,13 +406,13 @@ func run() {
 
 		// control the gopher with keys
 		ctrl := pixel.ZV
-		if win.Pressed(pixelgl.KeyLeft) {
+		if win.Pressed(pixelgl.KeyLeft) || win.Pressed(pixelgl.KeyA) {
 			ctrl.X--
 		}
-		if win.Pressed(pixelgl.KeyRight) {
+		if win.Pressed(pixelgl.KeyRight) || win.Pressed(pixelgl.KeyD) {
 			ctrl.X++
 		}
-		if win.JustPressed(pixelgl.KeyUp) {
+		if win.JustPressed(pixelgl.KeyUp) || win.JustPressed(pixelgl.KeyW) || win.Pressed(pixelgl.KeyRightShift) {
 			ctrl.Y = 1
 		}
 
