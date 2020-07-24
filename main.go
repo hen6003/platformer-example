@@ -18,10 +18,10 @@ import (
 	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/pkg/errors"
-	"golang.org/x/image/colornames"
 )
 
 var level int
+var bgcolour pixel.RGBA
 
 func loadAnimationSheet(sheetPath, descPath string, frameWidth float64) (sheet pixel.Picture, anims map[string][]pixel.Rect, err error) {
 	// total hack, nicely format the error at the end, so I don't have to type it every time
@@ -154,8 +154,12 @@ func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms0 []platform, 
 	if gp.rect.Min.X >= (goal.pos.X-(goal.radius+10)) && gp.rect.Min.X <= (goal.pos.X+(goal.radius)) {
 		if gp.rect.Min.Y >= (goal.pos.Y-(goal.radius+10)) && gp.rect.Min.Y <= (goal.pos.Y+(goal.radius)) {
 			if level != 2 {
-				level++
+				level++ // up lvl counter
 
+				// change background
+				bgcolour = randomNiceBGColor()
+
+				// go to middle of map again
 				phys.rect = phys.rect.Moved(phys.rect.Center().Scaled(-1))
 				phys.vel = pixel.ZV
 			}
@@ -291,6 +295,19 @@ again:
 	return pixel.RGB(r/len, g/len, b/len)
 }
 
+func randomNiceBGColor() pixel.RGBA {
+again:
+	r := rand.Float64()
+	g := rand.Float64()
+	b := rand.Float64()
+	len := math.Sqrt(r*r + g*g + b*b)
+	if len == 0 {
+		goto again
+	}
+
+	return pixel.RGB((r/len)-0.5, (g/len)-0.5, (b/len)-0.5)
+}
+
 func run() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -350,6 +367,8 @@ func run() {
 	for i := range platforms2 {
 		platforms2[i].color = randomNiceColor()
 	}
+
+	bgcolour = randomNiceBGColor()
 
 	// set default goal
 	gol := &goal{
@@ -417,7 +436,7 @@ func run() {
 		anim.update(dt, phys)
 
 		// draw the scene to the canvas using IMDraw
-		canvas.Clear(colornames.Black)
+		canvas.Clear(bgcolour)
 		imd.Clear()
 		for _, p := range platforms {
 			p.draw(imd)
@@ -427,7 +446,7 @@ func run() {
 		imd.Draw(canvas)
 
 		// stretch the canvas to the window
-		win.Clear(colornames.White)
+		//win.Clear(colornames.Blue)
 		win.SetMatrix(pixel.IM.Scaled(pixel.ZV,
 			math.Min(
 				win.Bounds().W()/canvas.Bounds().W(),
