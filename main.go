@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -19,6 +20,8 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/image/colornames"
 )
+
+var level int
 
 func loadAnimationSheet(sheetPath, descPath string, frameWidth float64) (sheet pixel.Picture, anims map[string][]pixel.Rect, err error) {
 	// total hack, nicely format the error at the end, so I don't have to type it every time
@@ -101,7 +104,7 @@ type gopherPhys struct {
 	ground bool
 }
 
-func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform, phys *gopherPhys) {
+func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms0 []platform, phys *gopherPhys, goal *goal) {
 	// apply controls
 	switch {
 	case ctrl.X < 0:
@@ -119,7 +122,7 @@ func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform, p
 	// check collisions against each platform
 	gp.ground = false
 	if gp.vel.Y <= 0 {
-		for _, p := range platforms {
+		for _, p := range platforms0 {
 			if gp.rect.Max.X <= p.rect.Min.X || gp.rect.Min.X >= p.rect.Max.X {
 				continue
 			}
@@ -137,9 +140,26 @@ func (gp *gopherPhys) update(dt float64, ctrl pixel.Vec, platforms []platform, p
 		gp.vel.Y = gp.jumpSpeed
 	}
 
+	// die if below -300
 	if gp.rect.Min.Y < -300.0 {
 		phys.rect = phys.rect.Moved(phys.rect.Center().Scaled(-1))
 		phys.vel = pixel.ZV
+	}
+
+	fmt.Print(gp.rect.Min.X)
+	fmt.Print(" | ")
+	fmt.Println(gp.rect.Min.Y)
+
+	// check if the player is at the goal so therefor should update the lvl
+	if gp.rect.Min.X >= (goal.pos.X-(goal.radius+10)) && gp.rect.Min.X <= (goal.pos.X+(goal.radius)) {
+		if gp.rect.Min.Y >= (goal.pos.Y-(goal.radius+10)) && gp.rect.Min.Y <= (goal.pos.Y+(goal.radius)) {
+			if level != 2 {
+				level++
+
+				phys.rect = phys.rect.Moved(phys.rect.Center().Scaled(-1))
+				phys.vel = pixel.ZV
+			}
+		}
 	}
 }
 
@@ -267,6 +287,7 @@ again:
 	if len == 0 {
 		goto again
 	}
+
 	return pixel.RGB(r/len, g/len, b/len)
 }
 
@@ -302,27 +323,37 @@ func run() {
 		dir:   +1,
 	}
 
-	// hardcoded level
-	platforms := []platform{
-		{rect: pixel.R(-50, -34, 50, -32)},
-		{rect: pixel.R(20, 0, 70, 2)},
-		{rect: pixel.R(-100, 10, -50, 12)},
-		{rect: pixel.R(120, -22, 140, -20)},
-		{rect: pixel.R(120, -72, 140, -70)},
-		{rect: pixel.R(120, -122, 140, -120)},
-		{rect: pixel.R(-100, -152, 100, -150)},
-		{rect: pixel.R(-150, -127, -140, -125)},
-		{rect: pixel.R(-180, -97, -170, -95)},
-		{rect: pixel.R(-150, -67, -140, -65)},
-		{rect: pixel.R(-180, -37, -170, -35)},
-		{rect: pixel.R(-150, -7, -140, -5)},
+	// hardcoded platforms
+	platforms0 := []platform{
+		// level0 - welcome
+		{rect: pixel.R(-40, -34, 50, -32)},   // start/right platform
+		{rect: pixel.R(-150, -14, -50, -12)}, // left platform
 	}
-	for i := range platforms {
-		platforms[i].color = randomNiceColor()
+	for i := range platforms0 {
+		platforms0[i].color = randomNiceColor()
+	}
+	platforms1 := []platform{
+		// level1 - start
+		{rect: pixel.R(-115, -34, 20, -32)}, // start platform
+	}
+	for i := range platforms1 {
+		platforms1[i].color = randomNiceColor()
+	}
+	platforms2 := []platform{
+		// level3
+		{rect: pixel.R(-50, -37, 50, -35)}, // start platform
+		{rect: pixel.R(70, -7, 80, -5)},    // first platform
+		{rect: pixel.R(40, 25, 50, 27)},    // second platform
+		{rect: pixel.R(70, 55, 80, 57)},    // third platform
+		{rect: pixel.R(100, 85, 200, 87)},  // end platform
+	}
+	for i := range platforms2 {
+		platforms2[i].color = randomNiceColor()
 	}
 
+	// set default goal
 	gol := &goal{
-		pos:    pixel.V(-75, 35),
+		pos:    pixel.V(-130, 10),
 		radius: 18,
 		step:   1.0 / 7,
 	}
@@ -348,7 +379,7 @@ func run() {
 			dt /= 8
 		}
 
-		// restart the level on pressing enter
+		// restart the platforms0 on pressing enter
 		if win.JustPressed(pixelgl.KeyEnter) {
 			phys.rect = phys.rect.Moved(phys.rect.Center().Scaled(-1))
 			phys.vel = pixel.ZV
@@ -366,8 +397,22 @@ func run() {
 			ctrl.Y = 1
 		}
 
+		// changes platforms based on level number
+		platforms := []platform{}
+		switch {
+		case level == 1:
+			platforms = platforms1
+			gol.pos = pixel.V(-75, -75)
+		case level == 2:
+			platforms = platforms2
+			gol.pos = pixel.V(180, 120)
+
+		default:
+			platforms = platforms0
+		}
+
 		// update the physics and animation
-		phys.update(dt, ctrl, platforms, phys)
+		phys.update(dt, ctrl, platforms, phys, gol)
 		gol.update(dt)
 		anim.update(dt, phys)
 
@@ -389,7 +434,9 @@ func run() {
 				win.Bounds().H()/canvas.Bounds().H(),
 			),
 		).Moved(win.Bounds().Center()))
+
 		canvas.Draw(win, pixel.IM.Moved(canvas.Bounds().Center()))
+
 		win.Update()
 	}
 }
